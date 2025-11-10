@@ -14,9 +14,6 @@ from layers.Medformer_EncDec import Encoder, EncoderLayer
 from layers.SelfAttention_Family import MedformerLayer
 from layers.Embed import ListPatchEmbedding
 
-# Set environment variables for Weights & Biases
-os.environ["WANDB_API_KEY"] = "KEY"
-os.environ["WANDB_MODE"] = 'offline'
 
 
 class Config:
