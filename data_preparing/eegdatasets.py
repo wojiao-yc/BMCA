@@ -13,7 +13,7 @@ from torchvision import transforms
 from torchvision.transforms import InterpolationMode
 
 from transformers import (
-    CLIPVisionModel, 
+    CLIPVisionModel,
     CLIPVisionModelWithProjection, 
     CLIPImageProcessor
 )
