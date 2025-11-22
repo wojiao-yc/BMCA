@@ -66,25 +66,11 @@ class EEGDataset():
         self.data, self.labels, self.text, self.img = self.load_data()
         self.data = self.extract_eeg(self.data, time_window)
         
-        # Load or compute CLIP features
-        if self.classes is None and self.pictures is None:
-            # Try to load saved features if they exist
-            features_filename = os.path.join(f'{model_type}_features_train.pt') if self.train else os.path.join(f'{model_type}_features_test.pt')
+        features_filename = "/home/wenxiao/workspace/qhy/BMCA/ViT-H-14_features_train.pt" if self.train else "/home/wenxiao/workspace/qhy/BMCA/ViT-H-14_features_test.pt"
             
-            if os.path.exists(features_filename):
-                saved_features = torch.load(features_filename)
-                self.text_features = saved_features['text_features']
-                self.img_features = saved_features['img_features']
-            else:
-                self.text_features = self.Textencoder(self.text)
-                self.img_features = self.ImageEncoder(self.img)
-                torch.save({
-                    'text_features': self.text_features.cpu(),
-                    'img_features': self.img_features.cpu(),
-                }, features_filename)
-        else:
-            self.text_features = self.Textencoder(self.text)
-            self.img_features = self.ImageEncoder(self.img)
+        saved_features = torch.load(features_filename)
+        self.text_features = saved_features['text_features']
+        self.img_features = saved_features['img_features']
             
     def load_data(self):
         """Load EEG data, labels, text descriptions and image paths"""
