@@ -43,13 +43,13 @@ class BrainEncoderAdapter(nn.Module):
         return: [B, L_b, d_model_med]  (这里 L_b = 1)
         """
         brain_tokens = self.patch_embed(eeg)  # [B, 1, d_model_med]
-        print("brain_tokens after patch_embed:", brain_tokens.shape)
+        # print("brain_tokens after patch_embed:", brain_tokens.shape)
         return brain_tokens
 
     # --- 单层前进（给 FusedEEGViT 调用） ---
     def step_layer(self, x: torch.Tensor, layer_idx: int, attn_mask=None) -> torch.Tensor:
         layer = self.layers[layer_idx]
-        print(f"[Medformer layer {layer_idx}] input x:", x.shape)
+        # print(f"[Medformer layer {layer_idx}] input x:", x.shape)
 
         out = layer(x, attn_mask=attn_mask)
         if isinstance(out, (tuple, list)):
@@ -57,5 +57,5 @@ class BrainEncoderAdapter(nn.Module):
         else:
             out0 = out
 
-        print(f"[Medformer layer {layer_idx}] output out0:", out0.shape)
+        # print(f"[Medformer layer {layer_idx}] output out0:", out0.shape)
         return out0

@@ -11,22 +11,7 @@ os.environ['http_proxy'] = 'http://127.0.0.1:7896'
 os.environ['https_proxy'] = 'http://127.0.0.1:7896'
 os.environ['all_proxy'] = 'socks5://127.0.0.1:7897'
 
-# Set up proxy (commented out as it's not currently needed)
-# proxy = 'http://10.16.35.10:13390'
-# os.environ['http_proxy'] = proxy
-# os.environ['https_proxy'] = proxy
-
-# Initialize device (use CUDA if available)
 device = "cuda:7" if torch.cuda.is_available() else "cpu"
-
-# Initialize CLIP model
-# model_type = 'ViT-H-14'
-# vlmodel, preprocess_train, feature_extractor = open_clip.create_model_and_transforms(
-#     model_type, 
-#     pretrained='laion2b_s32b_b79k', 
-#     precision='fp32', 
-#     device=device
-# )
 
 _, _, preprocess = open_clip.create_model_and_transforms(
     model_name="ViT-H-14",
@@ -259,48 +244,6 @@ class EEGDataset():
         extracted_data = eeg_data[..., indices]
         return extracted_data
     
-    def Textencoder(self, text):   
-        """
-        Encode text descriptions using CLIP text encoder
-        
-        Args:
-            text: List of text descriptions
-            
-        Returns:
-            Normalized text features
-        """
-        text_inputs = torch.cat([clip.tokenize(t) for t in text]).to(device)
-        with torch.no_grad():
-            text_features = vlmodel.encode_text(text_inputs)
-        text_features = F.normalize(text_features, dim=-1).detach()
-        return text_features
-        
-    def ImageEncoder(self, images):
-        """
-        Encode images using CLIP image encoder
-        
-        Args:
-            images: List of image paths
-            
-        Returns:
-            Normalized image features
-        """
-        batch_size = 20  # Process images in batches
-        image_features_list = []
-      
-        for i in range(0, len(images), batch_size):
-            batch_images = images[i:i + batch_size]
-            image_inputs = torch.stack([preprocess_train(Image.open(img).convert("RGB")) for img in batch_images]).to(device)
-
-            with torch.no_grad():
-                batch_image_features = vlmodel.encode_image(image_inputs)
-                batch_image_features /= batch_image_features.norm(dim=-1, keepdim=True)
-
-            image_features_list.append(batch_image_features)
-
-        image_features = torch.cat(image_features_list, dim=0)
-        return image_features
-    
     def __getitem__(self, index):
         """
         Get a single data sample by index
@@ -358,22 +301,3 @@ class EEGDataset():
     def __len__(self):
         """Return total number of samples in dataset"""
         return self.data.shape[0]
-
-
-if __name__ == "__main__":
-    # Example usage
-    data_path = "/home/ldy/Workspace/THINGS/EEG/osfstorage-archive"
-    
-    # Create datasets
-    train_dataset = EEGDataset(data_path, subjects=['sub-01'], train=True)    
-    test_dataset = EEGDataset(data_path, subjects=['sub-01'], train=False)
-    
-    # Create dataloaders
-    train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=True)
-    
-    # Test sample access
-    i = 80*1-1
-    x, label, text, text_features, img, img_features = test_dataset[i]
-    print(f"Index {i}, Label: {label}, text: {text}")
-    Image.open(img)

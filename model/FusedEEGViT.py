@@ -4,6 +4,8 @@ from typing import Tuple, Iterable
 import open_clip
 from .BrainEncoderAdapter import BrainEncoderAdapter
 from layers.CrossAttention_Bridge import CoProcessingBridge
+from loss import ClipLoss
+import numpy as np
 
 class FusedEEGViT(nn.Module):
     """
@@ -18,8 +20,9 @@ class FusedEEGViT(nn.Module):
 
     def __init__(
         self,
-        bridge_pairs: Iterable[Tuple[int, int]] = ((6, 0), (12, 1), (18, 2)),
-        n_heads_bridge: int = 8,
+        # bridge_pairs: Iterable[Tuple[int, int]] = ((6, 0), (12, 1), (18, 2)),
+        bridge_pairs: Iterable[Tuple[int, int]] = ((6, 0), ),
+        n_heads_bridge: int = 2,
         lora_r: int = 8,
         med_depth: int = 3,
         model_type: str = "ViT-H-14",
@@ -48,6 +51,9 @@ class FusedEEGViT(nn.Module):
             self.vit_final = getattr(self.visual, "embed_dim", None)
 
         assert self.vit_hidden == 1280, f"Expected final embedding dim 1280, got {self.vit_hidden}"
+
+        self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
+        self.loss_func = ClipLoss()
 
         # 2) Brain 侧：tsconv + Medformer（d_model_med = vit_hidden）
         self.brain_adapter = BrainEncoderAdapter(
@@ -135,7 +141,7 @@ class FusedEEGViT(nn.Module):
         if pos.dim() == 2:
             pos = pos.unsqueeze(0)
         x = x + pos
-        print("x:", x.shape)
+        # print("x:", x.shape)
         x = v.ln_pre(x)  # [B,257,D]
         return x
 
@@ -156,7 +162,7 @@ class FusedEEGViT(nn.Module):
         med_norm = self.brain_adapter.norm
 
         current_med_idx = 0
-        print("tokens:", tokens.shape)
+        # print("tokens:", tokens.shape)
         # 遍历 ViT 的每一层
         for i, blk in enumerate(vit_enc.resblocks):
             vit_layer_id = i + 1  # 1-based
@@ -244,7 +250,7 @@ class FusedEEGViT(nn.Module):
 
         # 3) ViT tokens before encoder
         vit_tokens = self.vit_embed_tokens(pixel_values)  # [B,1+256,D_vit]
-        print("vit_tokens", vit_tokens.shape)
+        # print("vit_tokens", vit_tokens.shape)
         # 4) ViT + Medformer 联合前进 + 多次桥接
         vit_tokens, brain_tokens = self.run_encoder_with_bridges(
             vit_tokens, brain_tokens
