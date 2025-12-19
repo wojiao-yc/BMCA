@@ -4,11 +4,13 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 import torch
 import random
 from torch.utils.data import DataLoader
-from data_preparing.blureegdatasets import EEGDataset
+# from data_preparing.blureegdatasets import EEGDataset
+from data_preparing.blureegdatasets_selected import EEGDataset
 from model.EEG_MedformerTS import eeg_encoder
+from BlurMed_PL import EEGLightningModule
 import numpy as np
 
-model_path = "/home/wenxiao/workspace/qhy/BMCA/data/joint-sub/epoch40.pth"
+model_path = "/home/wenxiao/workspace/qhy/BMCA/data/avgs/joint-subject/checkpoints/epoch=136-val_top1_acc=0.4950.ckpt"
 data_path = '/mnt/dataset0/ldy/datasets/THINGS_EEG/Preprocessed_data_250Hz'
 subjects = [f'sub-{i:02d}' for i in range(1, 11)]
 device = torch.device("cuda:6" if torch.cuda.is_available() else "cpu")
@@ -97,8 +99,12 @@ def evaluate_subject(sub):
 
 
 # ------------- main -------------
+ckpt = torch.load(model_path, map_location=device)
+state = {k.replace("brain.", ""): v for k, v in ckpt["state_dict"].items()}
 model = eeg_encoder().to(device)
-model.load_state_dict(torch.load(model_path, map_location=device))
+model.load_state_dict(state, strict=True)
+# model = eeg_encoder().to(device)
+# model.load_state_dict(torch.load(model_path, map_location=device))
 model.eval()
 
 results = []

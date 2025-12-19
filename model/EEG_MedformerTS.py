@@ -6,7 +6,7 @@ import torch.nn.functional as F
 import numpy as np
 from einops.layers.torch import Rearrange
 from torch import Tensor
-from loss import ClipLoss
+from loss import ClipLoss, ClipLoss_blur
 from layers.Medformer import Medformer
 # 修改为绝对导入路径
 # sys.path.append('/mnt/dataset1/ldy/Workspace/FLORA')
@@ -27,7 +27,8 @@ class Config:
         self.e_layers = 1
         self.d_ff = 256
         self.activation = 'gelu'
-        self.enc_in = 63
+        # self.enc_in = 63
+        self.enc_in = 17
         
         self.single_channel = False
         self.patch_len_list = "2,4,8"
@@ -120,7 +121,9 @@ class eeg_encoder(nn.Module):
         self.enc_eeg = Enc_eeg()
         self.proj_eeg = Proj_eeg()        
         self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
-        self.loss_func = ClipLoss()       
+        self.softplus = nn.Softplus()
+        self.loss_func = ClipLoss()     
+        self.loss_func_blur = ClipLoss_blur()      
  
     def forward(self, x, subject_ids=None):        
         x = self.encoder(x)        

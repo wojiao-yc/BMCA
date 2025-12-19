@@ -139,3 +139,31 @@ class ClipLoss(nn.Module):
             + F.cross_entropy(logits_per_text, labels)
         ) / 2
         return total_loss
+    
+
+class ClipLoss_blur(nn.Module):
+    def __init__(self):
+        super().__init__()
+       
+    def compute_ranking_weights(self,loss_list):
+        sorted_indices = torch.argsort(loss_list)
+        weights = torch.zeros_like(loss_list)
+        for i, idx in enumerate(sorted_indices):
+            weights[idx] = 1 / (i + 1)
+        return weights
+    
+    def forward(self, image_features, text_features, logit_scale):
+        device = image_features.device
+        logits_per_image = logit_scale * image_features @ text_features.T
+        logits_per_text = logit_scale * text_features @ image_features.T
+
+        num_logits = logits_per_image.shape[0]
+        labels = torch.arange(num_logits, device=device, dtype=torch.long)
+
+        image_loss = F.cross_entropy(logits_per_image, labels, reduction='none')
+        text_loss = F.cross_entropy(logits_per_text, labels, reduction='none')
+
+        # total_loss = (image_loss + text_loss) / 2
+        
+        return image_loss,text_loss, logits_per_image
+

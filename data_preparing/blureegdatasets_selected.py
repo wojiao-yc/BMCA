@@ -11,28 +11,8 @@ os.environ['http_proxy'] = 'http://127.0.0.1:7896'
 os.environ['https_proxy'] = 'http://127.0.0.1:7896'
 os.environ['all_proxy'] = 'socks5://127.0.0.1:7897'
 
-# Set up proxy (commented out as it's not currently needed)
-# proxy = 'http://10.16.35.10:13390'
-# os.environ['http_proxy'] = proxy
-# os.environ['https_proxy'] = proxy
-
 # Initialize device (use CUDA if available)
 device = "cuda:7" if torch.cuda.is_available() else "cpu"
-
-# Initialize CLIP model
-# model_type = 'ViT-H-14'
-# vlmodel, preprocess_train, feature_extractor = open_clip.create_model_and_transforms(
-#     model_type, 
-#     pretrained='laion2b_s32b_b79k', 
-#     precision='fp32', 
-#     device=device
-# )
-
-_, _, preprocess = open_clip.create_model_and_transforms(
-    model_name="ViT-H-14",
-    pretrained="laion2b_s32b_b79k",
-    precision='fp32'
-)
 
 # Load configuration from YAML file
 cfg = OmegaConf.load(os.path.join("/mnt/dataset1/ldy/Workspace/FLORA/configs/config.yaml"))
@@ -44,19 +24,6 @@ img_directory_test = cfg.eegdataset.img_directory_test
 
 
 class EEGDataset():
-    """
-    A dataset class for EEG data with associated images and text descriptions.
-    Supports both training and testing modes, with optional subject adaptation.
-    
-    Args:
-        data_path (str): Path to the EEG data directory
-        adap_subject (str, optional): Subject ID to adapt/leave out
-        subjects (list, optional): List of subject IDs to include
-        train (bool): Whether this is training data
-        time_window (list): Time window [start, end] in seconds to extract from EEG
-        classes (list, optional): Specific classes to include
-        pictures (list, optional): Specific pictures to include
-    """
     def __init__(self, data_path, adap_subject=None, subjects=None, train=True, time_window=[0, 1.0], classes=None, pictures=None):
         self.data_path = data_path
         self.train = train
@@ -76,12 +43,40 @@ class EEGDataset():
         self.data, self.labels, self.text, self.img = self.load_data()
         self.data = self.extract_eeg(self.data, time_window)
         
-        features_filename = "/home/wenxiao/workspace/qhy/BMCA/ViT-H-14_features_train.pt" if self.train else "/home/wenxiao/workspace/qhy/BMCA/ViT-H-14_features_test.pt"
-            
-        saved_features = torch.load(features_filename)
-        
-        self.text_features = saved_features['text_features']
-        self.img_features = saved_features['img_features']
+        features_filename = "/home/wenxiao/workspace/qhy/BMCA/data/intra-subject_ubp_EEGProjectLayer_RN50_train.pt" \
+            if self.train else "/home/wenxiao/workspace/qhy/BMCA/data/intra-subject_ubp_EEGProjectLayer_RN50_test.pt"
+
+        saved_features = torch.load(features_filename, weights_only=False)
+
+        # ====== Text features ======
+        # saved_features['text_features'] 是一个 dict: { word: (1024,) }
+        text_dict = saved_features['text_features']
+
+        # 统一排序（保证稳定性）并拼接成矩阵
+        text_keys = list(text_dict.keys())
+        text_tensor = torch.stack([text_dict[k] for k in text_keys], dim=0)  # shape: [1654, 1024]
+
+
+        # ====== Image features ======
+        # saved_features['img_features']['low'/'medium'/'high'] 都是 dict，同一套 key
+        img_low   = saved_features['img_features']['low']
+        img_med   = saved_features['img_features']['medium']
+        img_high  = saved_features['img_features']['high']
+
+        img_keys = list(img_low.keys())
+
+        # 对应元素求平均
+        img_tensor = torch.stack([
+            (img_low[k] + img_med[k] + img_high[k]) / 3.0
+            for k in img_keys
+        ], dim=0)  # shape: [16540, 1024]
+
+        self.text_features = text_tensor
+        self.img_features  = img_tensor
+
+        print("Text features shape:", self.text_features.shape)
+        print("Image features shape:", self.img_features.shape)
+
             
     def load_data(self):
         """Load EEG data, labels, text descriptions and image paths"""
@@ -156,13 +151,21 @@ class EEGDataset():
         # Load EEG data from each subject
         print("self.subjects", self.subjects)
         print("adap_subject", self.adap_subject)
+
+        selected_ch = ['P7', 'P5', 'P3', 'P1','Pz', 'P2', 'P4', 'P6', 'P8', 'PO7', 'PO3', 'POz', 'PO4', 'PO8','O1', 'Oz', 'O2']
         for subject in self.subjects:
             if self.train:
                 file_name = 'preprocessed_eeg_training.npy'
                 file_path = os.path.join(self.data_path, subject, file_name)
                 data = np.load(file_path, allow_pickle=True)
                 
-                preprocessed_eeg_data = torch.from_numpy(data['preprocessed_eeg_data']).float().detach()                
+                # preprocessed_eeg_data = torch.from_numpy(data['preprocessed_eeg_data']).float().detach()
+
+                data_path = os.path.join("/mnt/dataset4/qhy/THINGS-EEG/things_eeg/Preprocessed_data_250Hz_whiten", subject, 'train.pt')
+                loaded_data = torch.load(data_path, weights_only=False)
+                preprocessed_eeg_data=torch.from_numpy(loaded_data['eeg']).float().detach()
+                
+                              
                 times = torch.from_numpy(data['times']).detach()[50:]
                 ch_names = data['ch_names']
 
@@ -198,7 +201,12 @@ class EEGDataset():
                     file_name = 'preprocessed_eeg_test.npy'
                     file_path = os.path.join(self.data_path, subject, file_name)
                     data = np.load(file_path, allow_pickle=True)
-                    preprocessed_eeg_data = torch.from_numpy(data['preprocessed_eeg_data']).float().detach()
+
+                    # preprocessed_eeg_data = torch.from_numpy(data['preprocessed_eeg_data']).float().detach()
+                    data_path = os.path.join("/mnt/dataset4/qhy/THINGS-EEG/things_eeg/Preprocessed_data_250Hz_whiten", subject, 'test.pt')
+                    loaded_data = torch.load(data_path, weights_only=False)
+                    preprocessed_eeg_data=torch.from_numpy(loaded_data['eeg']).float().detach()
+
                     times = torch.from_numpy(data['times']).detach()[50:]
                     ch_names = data['ch_names']
                     n_classes = 200  # Each class contains 1 image
@@ -240,8 +248,10 @@ class EEGDataset():
         self.times = times
         self.ch_names = ch_names
 
+        selected_idx = [self.ch_names.index(ch) for ch in selected_ch]
+        data_tensor = data_tensor[:,selected_idx,:]
         print(f"Data tensor shape: {data_tensor.shape}, label tensor shape: {label_tensor.shape}, text length: {len(texts)}, image length: {len(images)}")
-        
+
         return data_tensor, label_tensor, texts, images
 
     def extract_eeg(self, eeg_data, time_window):
@@ -259,48 +269,6 @@ class EEGDataset():
         indices = (self.times >= start) & (self.times <= end)
         extracted_data = eeg_data[..., indices]
         return extracted_data
-    
-    def Textencoder(self, text):   
-        """
-        Encode text descriptions using CLIP text encoder
-        
-        Args:
-            text: List of text descriptions
-            
-        Returns:
-            Normalized text features
-        """
-        text_inputs = torch.cat([clip.tokenize(t) for t in text]).to(device)
-        with torch.no_grad():
-            text_features = vlmodel.encode_text(text_inputs)
-        text_features = F.normalize(text_features, dim=-1).detach()
-        return text_features
-        
-    def ImageEncoder(self, images):
-        """
-        Encode images using CLIP image encoder
-        
-        Args:
-            images: List of image paths
-            
-        Returns:
-            Normalized image features
-        """
-        batch_size = 20  # Process images in batches
-        image_features_list = []
-      
-        for i in range(0, len(images), batch_size):
-            batch_images = images[i:i + batch_size]
-            image_inputs = torch.stack([preprocess_train(Image.open(img).convert("RGB")) for img in batch_images]).to(device)
-
-            with torch.no_grad():
-                batch_image_features = vlmodel.encode_image(image_inputs)
-                batch_image_features /= batch_image_features.norm(dim=-1, keepdim=True)
-
-            image_features_list.append(batch_image_features)
-
-        image_features = torch.cat(image_features_list, dim=0)
-        return image_features
     
     def __getitem__(self, index):
         """
@@ -349,8 +317,6 @@ class EEGDataset():
                 
         text = self.text[text_index]
         img = self.img[img_index]
-        img = Image.open(img).convert("RGB")
-        img = preprocess(img).to(device)
         text_features = self.text_features[text_index]
         img_features = self.img_features[img_index]
         
