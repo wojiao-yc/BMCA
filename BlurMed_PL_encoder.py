@@ -288,8 +288,8 @@ def run_all_modes(
     # 只用你原来正在用的 inter-subject 模式
     modes = {
         # 1: "in-subject",
-        # 2: "joint-subject",
-        3: "inter-subject",
+        2: "joint-subject",
+        # 3: "inter-subject",
     }
 
     for mode_id, mode_name in modes.items():
@@ -369,7 +369,7 @@ def run_all_modes(
 
             # ===== Trainer（使用你示例中的训练策略）=====
             trainer = Trainer(
-                devices=[0],  # 指定 GPU 卡号
+                devices=[4],  # 指定 GPU 卡号
                 log_every_n_steps=10,
                 # strategy=DDPStrategy(find_unused_parameters=True),
                 strategy="auto",
@@ -388,7 +388,6 @@ def run_all_modes(
                 ckpt_path="last",  
             )
 
-            best = checkpoint_callback.best_model_path 
             test_results = trainer.test(
                 pl_model,
                 dataloaders=test_loader,
@@ -426,13 +425,13 @@ def main():
     parser.add_argument(
         "--lr",
         type=float,
-        default=3e-4,
+        default=1e-4,
         help="学习率",
     )
     parser.add_argument(
         "--epochs",
         type=int,
-        default=50,
+        default=100,
         help="最大训练 epoch 数",
     )
     parser.add_argument(

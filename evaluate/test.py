@@ -10,7 +10,7 @@ from model.EEG_MedformerTS import eeg_encoder
 from BlurMed_PL import EEGLightningModule
 import numpy as np
 
-model_path = "/home/wenxiao/workspace/qhy/BMCA/data/avgs/joint-subject/checkpoints/epoch=136-val_top1_acc=0.4950.ckpt"
+model_path = "/home/wenxiao/workspace/qhy/BMCA/data/blur+avgs+med/joint-subject/checkpoints/epoch=136-val_top1_acc=0.4950.ckpt"
 data_path = '/mnt/dataset0/ldy/datasets/THINGS_EEG/Preprocessed_data_250Hz'
 subjects = [f'sub-{i:02d}' for i in range(1, 11)]
 device = torch.device("cuda:6" if torch.cuda.is_available() else "cpu")
