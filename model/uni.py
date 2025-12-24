@@ -12,101 +12,25 @@ os.environ["WANDB_API_KEY"] = "KEY"
 os.environ["WANDB_MODE"] = 'offline'
 from itertools import combinations
 
-import clip
 import matplotlib.pyplot as plt
 import numpy as np
 import torch.nn as nn
 import torchvision.transforms as transforms
 import tqdm
 from einops.layers.torch import Rearrange, Reduce
-from loss import ClipLoss
-from sklearn.metrics import confusion_matrix
+from loss import ClipLoss, ClipLoss_blur
 from torch.utils.data import DataLoader, Dataset
 import random
 import csv
 # from braindecode.models import EEGNetv4, ATCNet, EEGConformer, EEGITNet, ShallowFBCSPNet
 import argparse
-from eegdatasets_joint_subjects import EEGDataset
 import math
 sys.path.insert(0,'/mnt/dataset0/ldy/Workspace/EEG_Image_decode/Retrieval/model')
 # from umbrae import BrainXS_thingseeg2
 sys.path.insert(0,'/mnt/dataset0/ldy/Workspace/MindEyeV2/src')
-from models import BrainNetwork
+# from models import BrainNetwork
 sys.path.insert(0,'/mnt/dataset0/ldy/Workspace/neuro_v2l/Code/llava/model/fmri_encoder')
-from transformers import CLIPVisionConfig
-from vit3d import CLIPVision3dModelWithProjection
 import sys
-sys.path.append('/mnt/dataset0/ldy/Workspace/CognitionCapturer')
-from src.models.components.Cogcap.Cogcap import Cogcap as CogcapBase
-
-class Cogcap(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
-        self.loss_func = ClipLoss()
-        
-        # 使用 Cogcap 基础模型
-        self.model = CogcapBase(
-            num_channels=63, 
-            sequence_length=250,
-            num_subjects=10
-        )
-
-    def forward(self, x):
-        x = self.model(x)
-        return x
-
-
-
-#--------------------------------NV2L-----------------------------------#
-class NeV2L(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
-        self.loss_func = ClipLoss()
-        self.config = CLIPVisionConfig.from_pretrained("/mnt/dataset0/ldy/Workspace/EEG_Image_decode_Wrong/Retrieval/vitconfig.json")
-        self.config.image_size = (32, 16, 16) 
-        self.config.num_channels = 1
-        self.config.patch_size = 8
-        self.proj_eeg = nn.Linear(63 * 250, 8192)
-        self.model = CLIPVision3dModelWithProjection(self.config)
-
-
-    def forward(self, x):
-        batch_size = x.size(0)
-        # Reshape input: (batch_size, channels, time) -> (batch_size, channels*time)
-        x = x.reshape(batch_size, -1)  # 将变成 (batch_size, 63*250)
-        x = self.proj_eeg(x)          # 投影到 (batch_size, 8192)
-        x = x.reshape(x.size(0), -1, 16, 16)  # 重塑为需要的形状
-        x = self.model(x, output_hidden_states=True)
-        eeg_features = x.last_hidden_state
-        eeg_features = eeg_features.mean(dim=1)
-        return eeg_features
-
-#--------------------------------MindEyeV2-----------------------------------#
-class MindEyeModule(nn.Module):
-    def __init__(self):
-        super(MindEyeModule, self).__init__()
-        self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
-        self.loss_func = ClipLoss()
-        self.config = CLIPVisionConfig.from_pretrained("/mnt/dataset0/ldy/Workspace/EEG_Image_decode_Wrong/Retrieval/vitconfig.json")
-        self.proj_eeg = nn.Linear(250*63, 4096) # Equivalent to the original
-        self.BrainNetwork = BrainNetwork(h=4096, in_dim=1024, seq_len=1, n_blocks=4,
-                          clip_size=1024, out_dim=1024, 
-                          blurry_recon=False, clip_scale=1)
-
-    def forward(self, x):
-        # [b, 63, 250]
-        x = x.reshape(x.size(0), -1)
-        # [b, 63*250]
-        x = self.proj_eeg(x)
-        x = x.reshape(x.size(0), -1, 4096)
-        x = self.BrainNetwork(x)
-        eeg_features,_,_ = x
-        # [b, 256, 1024]
-        eeg_features = eeg_features.mean(dim=1)
-        # [b, 1024]
-        return eeg_features
 
 #--------------------------------NICE-----------------------------------#
 class PatchEmbedding(nn.Module):
@@ -118,7 +42,7 @@ class PatchEmbedding(nn.Module):
             nn.AvgPool2d((1, 51), (1, 5)),
             nn.BatchNorm2d(40),
             nn.ELU(),
-            nn.Conv2d(40, 40, (63, 1), (1, 1)),
+            nn.Conv2d(40, 40, (17, 1), (1, 1)),
             nn.BatchNorm2d(40),
             nn.ELU(),
             nn.Dropout(0.5),
@@ -184,7 +108,9 @@ class NICE(nn.Module):
         self.enc_eeg = Enc_eeg()
         self.proj_eeg = Proj_eeg()
         self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
-        self.loss_func = ClipLoss()        
+        self.loss_func = ClipLoss()
+        self.softplus = nn.Softplus() 
+        self.loss_func_blur = ClipLoss_blur()         
     def forward(self, data):
         eeg_embedding = self.enc_eeg(data)
         out = self.proj_eeg(eeg_embedding)
@@ -296,10 +222,10 @@ def make_block(h_c, h_l,dropout_rate=0.25):
 
 class Projector(nn.Module):
 
-    def __init__(self, in_features, h_dim=(64, 1024), n_hidden_layer=2,dropout_rate=0.25):
+    def __init__(self, h_dim=(64, 1024), n_hidden_layer=2,dropout_rate=0.25):
         # in_features: (c, l)
         super().__init__()
-        c, l = in_features
+        c, l = 17, 250
         h_c, h_l = h_dim
         c_o, l_o = 1, 1024
 
@@ -341,7 +267,8 @@ class Projector(nn.Module):
 
         # self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
         self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1/0.01))
-                
+        self.softplus = nn.Softplus() 
+        self.loss_func_blur = ClipLoss_blur()      
         self.loss_func = ClipLoss()
     
     def forward(self, eeg_embeds):
@@ -379,6 +306,8 @@ class ShallowFBCSPNet_Encoder(nn.Module):
                                          add_log_softmax=True)
         self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
         self.loss_func = ClipLoss()
+        self.softplus = nn.Softplus() 
+        self.loss_func_blur = ClipLoss_blur() 
     def forward(self, data):
         prediction = self.ShallowFBCSPNet(data)
         return prediction
@@ -421,6 +350,8 @@ class ATCNet_Encoder(nn.Module):
         
         self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
         self.loss_func = ClipLoss()
+        self.softplus = nn.Softplus() 
+        self.loss_func_blur = ClipLoss_blur() 
     def forward(self, data):
         # print("data", data.shape)
         prediction = self.eegATCNet(data)
@@ -463,7 +394,7 @@ class EEGAttention(nn.Module):
         return output.permute(1, 2, 0)  # Change shape back to [batch_size, channel, time_length]
 
 class MetaEEG(nn.Module):
-    def __init__(self, num_channels=63, sequence_length=250, num_subjects=1, num_features=64, num_latents=1024, num_blocks=1):
+    def __init__(self, num_channels=17, sequence_length=250, num_subjects=1, num_features=64, num_latents=1024, num_blocks=1):
         super(MetaEEG, self).__init__()
         self.attention_model = EEGAttention(num_channels, num_channels, nhead=1)               
         self.subject_wise_linear = nn.ModuleList([nn.Linear(sequence_length, sequence_length) for _ in range(num_subjects)])
@@ -478,6 +409,8 @@ class MetaEEG(nn.Module):
         self.mse_head = MLPHead(num_latents, num_latents)
         self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1/0.01))
         self.loss_func = ClipLoss()
+        self.softplus = nn.Softplus() 
+        self.loss_func_blur = ClipLoss_blur() 
         
     def forward(self, x):
     # def forward(self, x, subject_id):
@@ -560,5 +493,34 @@ class MLPHead(nn.Module):
         # print(f'MLPHead input shape: {x.shape}')
         x = self.layer1(x)
         # print(f'After first layer of MLPHead shape: {x.shape}')
+        return x
+#########################################################################
+
+
+#-------------------------------UBP------------------------------------#
+class EEGProjectLayer(nn.Module):
+    def __init__(self,  z_dim,c_num, timesteps, drop_proj=0.3):
+        super(EEGProjectLayer, self).__init__()
+        self.z_dim = z_dim
+        self.c_num = c_num
+        self.timesteps = timesteps
+
+        self.input_dim = self.c_num * (self.timesteps[1]-self.timesteps[0])
+        proj_dim = z_dim
+
+        self.model = nn.Sequential(nn.Linear(self.input_dim, proj_dim),
+            ResidualAdd(nn.Sequential(
+                nn.GELU(),
+                nn.Linear(proj_dim, proj_dim),
+                nn.Dropout(drop_proj),
+            )),
+            nn.LayerNorm(proj_dim))
+        self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
+        self.softplus = nn.Softplus() 
+        self.loss_func_blur = ClipLoss_blur() 
+        
+    def forward(self, x):
+        x = x.view(x.shape[0], self.input_dim)
+        x = self.model(x)
         return x
 #########################################################################

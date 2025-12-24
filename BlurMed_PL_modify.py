@@ -17,7 +17,6 @@ from PIL import Image
 # 你自己的数据和模型
 from data_preparing.blureegdatasets_selected_avg import EEGDataset
 from model.EEG_MedformerTS import eeg_encoder
-from model.uni import Projector, EEGConformer_Encoder, MetaEEG, EEGNetv4_Encoder, ShallowFBCSPNet_Encoder, NICE, ATCNet_Encoder, EEGITNet_Encoder
 
 # ==========================
 #   PyTorch Lightning 相关
@@ -289,32 +288,46 @@ def run_all_modes(
     # 只用你原来正在用的 inter-subject 模式
     modes = {
         # 1: "in-subject",
-        2: "joint-subject",
-        # 3: "inter-subject",
+        # 2: "joint-subject",
+        3: "inter-subject",
     }
 
     for mode_id, mode_name in modes.items():
         print(f"\n========== 运行模式: {mode_name} ==========\n")
 
-        for test_sub in subjects:
+        if mode_id == 2:  # joint-subject 只训练一次
+            test_subjects = ["sub-01"]
+        else:
+            test_subjects = subjects
+
+        for test_sub in test_subjects:
             if mode_id == 1:  # in-subject
                 train_subjects = [test_sub]
+                eval_subjects = [test_sub]
             elif mode_id == 2:  # joint-subject
                 train_subjects = subjects
+                eval_subjects = subjects
             elif mode_id == 3:  # inter-subject
                 train_subjects = [s for s in subjects if s != test_sub]
+                eval_subjects = [test_sub]
 
             print(f"[{mode_name}] train={train_subjects}  test={test_sub}")
+
+            exp_name = f"{mode_name}"
+            log_dir = os.path.join(save_root, exp_name, str(test_sub))
+            results_path = os.path.join(log_dir, "test_results.json")
+            if os.path.exists(results_path):
+                print(f"[{mode_name}] {test_sub} 已完成，跳过：{results_path}")
+                continue
 
             train_dataset = EEGDataset(
                 data_path,
                 subjects=train_subjects,
                 train=True,
-                avg=False,
             )
             test_dataset = EEGDataset(
                 data_path,
-                subjects=[test_sub],
+                subjects=eval_subjects,
                 train=False,
             )
 
@@ -331,9 +344,7 @@ def run_all_modes(
                 drop_last=True,
             )
 
-            # base_model = eeg_encoder()
-            # base_model = Projector()
-            base_model = NICE()
+            base_model = eeg_encoder()
 
             pl_model = EEGLightningModule(
                 model=base_model,
@@ -345,11 +356,10 @@ def run_all_modes(
             )
 
             # ===== Logger，每个被试一个 log 目录 =====
-            exp_name = f"{mode_name}"
             logger = TensorBoardLogger(
                 save_dir=save_root,
                 name=exp_name,
-                version=test_sub,  # 每个被试一个 version
+                version=test_sub,  # 每个被试一个 version / joint-subject 用 "all"
             )
             os.makedirs(logger.log_dir, exist_ok=True)
             print(f"TensorBoard log dir: {logger.log_dir}")
@@ -373,7 +383,7 @@ def run_all_modes(
 
             # ===== Trainer（使用你示例中的训练策略）=====
             trainer = Trainer(
-                devices=[5],  # 指定 GPU 卡号
+                devices=[4],  # 指定 GPU 卡号
                 log_every_n_steps=10,
                 # strategy=DDPStrategy(find_unused_parameters=True),
                 strategy="auto",
@@ -384,15 +394,18 @@ def run_all_modes(
                 logger=logger,
             )
 
+            last_ckpt_path = os.path.join(logger.log_dir, "checkpoints", "last.ckpt")
+            ckpt_path = last_ckpt_path if os.path.exists(last_ckpt_path) else None
+
             # ===== 训练 =====
             trainer.fit(
                 pl_model,
                 train_dataloaders=train_loader,
                 val_dataloaders=test_loader,  # 没有单独 val，就用 test 做验证
-                ckpt_path="last",  
+                ckpt_path=ckpt_path,
             )
 
-            best = checkpoint_callback.best_model_path
+            best = checkpoint_callback.best_model_path 
             test_results = trainer.test(
                 pl_model,
                 dataloaders=test_loader,
@@ -424,19 +437,19 @@ def main():
     parser.add_argument(
         "--save_root",
         type=str,
-        default="/home/wenxiao/workspace/qhy/BMCA/data/contrast/NICE",
+        default="/home/wenxiao/workspace/qhy/BMCA/data/avgs",
         help="日志和 checkpoint 保存根目录",
     )
     parser.add_argument(
         "--lr",
         type=float,
-        default=1e-4,
+        default=3e-4,
         help="学习率",
     )
     parser.add_argument(
         "--epochs",
         type=int,
-        default=100,
+        default=50,
         help="最大训练 epoch 数",
     )
     parser.add_argument(

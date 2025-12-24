@@ -149,14 +149,16 @@ class EEGDataset():
                     label_list.append(labels)
 
         # Process and concatenate all loaded data
+        label_tensor = torch.cat(label_list, dim=0)
         if self.train and not self.avg:
             data_tensor = torch.cat(data_list, dim=0).view(-1, *data_list[0].shape[2:])
+            label_tensor = label_tensor.repeat_interleave(4)
         elif self.train and self.avg:
             data_tensor = torch.cat(data_list, dim=0).view(-1, 4, *data_list[0].shape[2:]).mean(dim=1)              
         else:           
             data_tensor = torch.cat(data_list, dim=0).view(-1, *data_list[0].shape)   
-        label_tensor = torch.cat(label_list, dim=0)
-
+        
+    
         self.times = times
         self.ch_names = ch_names
 
