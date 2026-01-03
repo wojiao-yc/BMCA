@@ -30,12 +30,14 @@ class EEGDataset():
         self.data = self.extract_eeg(self.data, time_window)
         
         # Load precomputed CLIP features
+        # features_filename = "/home/wenxiao/workspace/qhy/BMCA/data/RN50_openai_train_blur3.pt" \
+        #     if self.train else "/home/wenxiao/workspace/qhy/BMCA/data/RN50_openai_test_blur3.pt"
         # features_filename = "/home/wenxiao/workspace/qhy/BMCA/data/intra-subject_ubp_EEGProjectLayer_RN50_train.pt" \
         #     if self.train else "/home/wenxiao/workspace/qhy/BMCA/data/intra-subject_ubp_EEGProjectLayer_RN50_test.pt"
         features_filename = "/home/wenxiao/workspace/qhy/BMCA/data/RN50_features_train.pt" \
             if self.train else "/home/wenxiao/workspace/qhy/BMCA/data/RN50_features_test.pt"
         saved_features = torch.load(features_filename, weights_only=False)
-        # Text features
+        # # Text features
         # text_dict = saved_features['text_features']
         # text_keys = list(text_dict.keys())
         # text_tensor = torch.stack([text_dict[k] for k in text_keys], dim=0)  # shape: [1654, 1024]
@@ -48,7 +50,7 @@ class EEGDataset():
         #     (img_low[k] + img_med[k] + img_high[k]) / 3.0
         #     for k in img_keys
         # ], dim=0)  # shape: [16540, 1024]
-        # Assign features to class attributes
+        # # Assign features to class attributes
         # self.text_features = text_tensor
         # self.img_features  = img_tensor
         self.text_features = saved_features['text_features']

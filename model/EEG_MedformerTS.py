@@ -8,9 +8,6 @@ from einops.layers.torch import Rearrange
 from torch import Tensor
 from loss import ClipLoss, ClipLoss_blur
 from layers.Medformer import Medformer
-# 修改为绝对导入路径
-# sys.path.append('/mnt/dataset1/ldy/Workspace/FLORA')
-
 
 class Config:
     def __init__(self):

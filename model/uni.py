@@ -22,7 +22,7 @@ from loss import ClipLoss, ClipLoss_blur
 from torch.utils.data import DataLoader, Dataset
 import random
 import csv
-# from braindecode.models import EEGNetv4, ATCNet, EEGConformer, EEGITNet, ShallowFBCSPNet
+from braindecode.models import EEGNetv4, ATCNet, EEGConformer, EEGITNet, ShallowFBCSPNet
 import argparse
 import math
 sys.path.insert(0,'/mnt/dataset0/ldy/Workspace/EEG_Image_decode/Retrieval/model')
@@ -123,7 +123,7 @@ class NICE(nn.Module):
 class EEGNetv4_Encoder(nn.Module):
     def __init__(self):
         super().__init__()
-        self.shape = (63, 250)
+        self.shape = (17, 250)
         self.eegnet = EEGNetv4(
             in_chans=self.shape[0],
             n_classes=1024,   
@@ -139,6 +139,8 @@ class EEGNetv4_Encoder(nn.Module):
         )
         self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
         self.loss_func = ClipLoss()
+        self.softplus = nn.Softplus() 
+        self.loss_func_blur = ClipLoss_blur() 
     def forward(self, data):
         data = data.unsqueeze(0)
         data = data.reshape(data.shape[1], data.shape[2], data.shape[3], data.shape[0])
@@ -499,7 +501,7 @@ class MLPHead(nn.Module):
 
 #-------------------------------UBP------------------------------------#
 class EEGProjectLayer(nn.Module):
-    def __init__(self,  z_dim,c_num, timesteps, drop_proj=0.3):
+    def __init__(self, z_dim=1024, c_num=17, timesteps=[0,250], drop_proj=0.3):
         super(EEGProjectLayer, self).__init__()
         self.z_dim = z_dim
         self.c_num = c_num
@@ -517,7 +519,8 @@ class EEGProjectLayer(nn.Module):
             nn.LayerNorm(proj_dim))
         self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
         self.softplus = nn.Softplus() 
-        self.loss_func_blur = ClipLoss_blur() 
+        self.loss_func_blur = ClipLoss_blur()
+        self.loss_func = ClipLoss()
         
     def forward(self, x):
         x = x.view(x.shape[0], self.input_dim)

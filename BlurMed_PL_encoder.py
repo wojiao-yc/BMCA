@@ -17,7 +17,7 @@ from PIL import Image
 # 你自己的数据和模型
 from data_preparing.blureegdatasets_selected_avg import EEGDataset
 from model.EEG_MedformerTS import eeg_encoder
-from model.uni import Projector, EEGConformer_Encoder, MetaEEG, EEGNetv4_Encoder, ShallowFBCSPNet_Encoder, NICE, ATCNet_Encoder, EEGITNet_Encoder
+from model.uni import Projector, EEGConformer_Encoder, MetaEEG, EEGNetv4_Encoder, ShallowFBCSPNet_Encoder, NICE, ATCNet_Encoder, EEGITNet_Encoder, EEGProjectLayer
 
 # ==========================
 #   PyTorch Lightning 相关
@@ -288,7 +288,7 @@ def run_all_modes(
     # subjects = [f"sub-{i:02d}" for i in range(2, 3)]
     # 只用你原来正在用的 inter-subject 模式
     modes = {
-        # 1: "in-subject",
+        1: "in-subject",
         2: "joint-subject",
         # 3: "inter-subject",
     }
@@ -310,7 +310,7 @@ def run_all_modes(
                 data_path,
                 subjects=train_subjects,
                 train=True,
-                avg=False,
+                # avg=False,
             )
             test_dataset = EEGDataset(
                 data_path,
@@ -333,7 +333,9 @@ def run_all_modes(
 
             # base_model = eeg_encoder()
             # base_model = Projector()
-            base_model = NICE()
+            # base_model = NICE()
+            base_model = EEGProjectLayer()
+            # base_model = MetaEEG()
 
             pl_model = EEGLightningModule(
                 model=base_model,
@@ -373,7 +375,7 @@ def run_all_modes(
 
             # ===== Trainer（使用你示例中的训练策略）=====
             trainer = Trainer(
-                devices=[5],  # 指定 GPU 卡号
+                devices=[3],  # 指定 GPU 卡号
                 log_every_n_steps=10,
                 # strategy=DDPStrategy(find_unused_parameters=True),
                 strategy="auto",
@@ -424,7 +426,7 @@ def main():
     parser.add_argument(
         "--save_root",
         type=str,
-        default="/home/wenxiao/workspace/qhy/BMCA/data/contrast/NICE",
+        default="/home/wenxiao/workspace/qhy/BMCA/data/contrast/UBP",
         help="日志和 checkpoint 保存根目录",
     )
     parser.add_argument(
