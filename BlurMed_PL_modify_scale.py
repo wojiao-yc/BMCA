@@ -7,12 +7,10 @@ from typing import Tuple
 import argparse
 import json
 import torch
-torch.set_num_threads(4)
-torch.set_num_interop_threads(1)
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.optim import AdamW
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 
 from PIL import Image
 
@@ -282,6 +280,8 @@ def run_all_modes(
     lr: float = 1e-4,
     epochs: int = 100,
     batch_size: int = 1024,
+    train_fraction: float = 1.0,
+    seed: int = 42,
 ):
     os.makedirs(save_root, exist_ok=True)
 
@@ -289,8 +289,8 @@ def run_all_modes(
     # subjects = [f"sub-{i:02d}" for i in range(2, 3)]
     # 只用你原来正在用的 inter-subject 模式
     modes = {
-        1: "in-subject",
-        # 2: "joint-subject",
+        # 1: "in-subject",
+        2: "joint-subject",
         # 3: "inter-subject",
     }
 
@@ -334,8 +334,20 @@ def run_all_modes(
                 train=False,
             )
 
+            train_data_for_loader = train_dataset
+            if train_fraction < 1.0:
+                total_size = len(train_dataset)
+                subset_size = max(1, int(total_size * train_fraction))
+                generator = torch.Generator().manual_seed(seed)
+                indices = torch.randperm(total_size, generator=generator)[:subset_size].tolist()
+                train_data_for_loader = Subset(train_dataset, indices)
+                print(
+                    f"[{mode_name}] 使用训练子集: {subset_size}/{total_size} "
+                    f"({train_fraction:.2%})"
+                )
+
             train_loader = DataLoader(
-                train_dataset,
+                train_data_for_loader,
                 batch_size=batch_size,
                 shuffle=True,
                 drop_last=True,
@@ -386,7 +398,7 @@ def run_all_modes(
 
             # ===== Trainer（使用你示例中的训练策略）=====
             trainer = Trainer(
-                devices=[0],  # 指定 GPU 卡号
+                devices=[1],  # 指定 GPU 卡号
                 log_every_n_steps=10,
                 # strategy=DDPStrategy(find_unused_parameters=True),
                 strategy="auto",
@@ -440,19 +452,19 @@ def main():
     parser.add_argument(
         "--save_root",
         type=str,
-        default="/home/wenxiao/workspace/qhy/BMCA/data/blur/r51",
+        default="/home/wenxiao/workspace/qhy/BMCA/data/scale/0.2",
         help="日志和 checkpoint 保存根目录",
     )
     parser.add_argument(
         "--lr",
         type=float,
-        default=1e-4,
+        default=3e-4,
         help="学习率",
     )
     parser.add_argument(
         "--epochs",
         type=int,
-        default=300,
+        default=100,
         help="最大训练 epoch 数",
     )
     parser.add_argument(
@@ -467,10 +479,19 @@ def main():
         default=42,
         help="随机种子",
     )
+    parser.add_argument(
+        "--train_fraction",
+        type=float,
+        default=0.2,
+        help="训练集采样比例 (0, 1]，例如 0.2 表示只用 20% 训练数据",
+    )
 
     opt = parser.parse_args()
 
     seed_everything(opt.seed)
+
+    if not (0.0 < opt.train_fraction <= 1.0):
+        raise ValueError("--train_fraction must be in (0, 1].")
 
     run_all_modes(
         data_path=opt.data_path,
@@ -478,6 +499,8 @@ def main():
         lr=opt.lr,
         epochs=opt.epochs,
         batch_size=opt.batch_size,
+        train_fraction=opt.train_fraction,
+        seed=opt.seed,
     )
 
 

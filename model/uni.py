@@ -22,7 +22,7 @@ from loss import ClipLoss, ClipLoss_blur
 from torch.utils.data import DataLoader, Dataset
 import random
 import csv
-from braindecode.models import EEGNetv4, ATCNet, EEGConformer, EEGITNet, ShallowFBCSPNet
+from braindecode.models import EEGNet, ATCNet, EEGConformer, EEGITNet, ShallowFBCSPNet
 import argparse
 import math
 sys.path.insert(0,'/mnt/dataset0/ldy/Workspace/EEG_Image_decode/Retrieval/model')
@@ -120,27 +120,29 @@ class NICE(nn.Module):
 
 
 #-------------------------------EEGNetv4--------------------------------#
-class EEGNetv4_Encoder(nn.Module):
+class EEGNet_Encoder(nn.Module):
     def __init__(self):
         super().__init__()
-        self.shape = (17, 250)
-        self.eegnet = EEGNetv4(
-            in_chans=self.shape[0],
-            n_classes=1024,   
-            input_window_samples=self.shape[1],
-            final_conv_length='auto',
-            pool_mode='mean',
+        n_chans, n_times = 17, 250
+
+        self.eegnet = EEGNet(
+            n_chans=n_chans,
+            n_outputs=1024,
+            n_times=n_times,
+            final_conv_length="auto",
+            pool_mode="mean",
             F1=8,
             D=20,
             F2=160,
             kernel_length=4,
-            third_kernel_size=(4, 2),
-            drop_prob=0.25
+            depthwise_kernel_length=2,
+            drop_prob=0.25,
         )
+
         self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
         self.loss_func = ClipLoss()
-        self.softplus = nn.Softplus() 
-        self.loss_func_blur = ClipLoss_blur() 
+        self.softplus = nn.Softplus()
+        self.loss_func_blur = ClipLoss_blur()
     def forward(self, data):
         data = data.unsqueeze(0)
         data = data.reshape(data.shape[1], data.shape[2], data.shape[3], data.shape[0])
@@ -154,8 +156,8 @@ class EEGNetv4_Encoder(nn.Module):
 class EEGConformer_Encoder(nn.Module):
     def __init__(self):
         super().__init__()
-        self.shape = (63, 250)
-        self.eegConformer = EEGConformer(n_outputs=None, 
+        self.shape = (17, 250)
+        self.eegConformer = EEGConformer(n_outputs=1024, 
                                    n_chans=self.shape[0], 
                                    n_filters_time=40, 
                                    filter_time_length=10, 
@@ -170,11 +172,14 @@ class EEGConformer_Encoder(nn.Module):
                                    n_times=None, 
                                    chs_info=None, 
                                    input_window_seconds=None,
-                                   n_classes=1024, 
-                                   input_window_samples=self.shape[1], 
-                                   add_log_softmax=True)
+                                #    n_classes=1024, 
+                                #    input_window_samples=self.shape[1], 
+                                #    add_log_softmax=True
+                                   )
         self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
         self.loss_func = ClipLoss()
+        self.softplus = nn.Softplus()
+        self.loss_func_blur = ClipLoss_blur()
     def forward(self, data):
         # data = data.unsqueeze(0)
         # data = data.reshape(data.shape[1], data.shape[2], data.shape[3], data.shape[0])
@@ -320,7 +325,7 @@ class ShallowFBCSPNet_Encoder(nn.Module):
 class ATCNet_Encoder(nn.Module):
     def __init__(self):
         super().__init__()
-        self.shape = (63, 250)
+        self.shape = (17, 250)
         self.eegATCNet = ATCNet(n_chans=self.shape[0], 
                                 n_outputs=1024,
                                 input_window_seconds=1.0,

@@ -2,7 +2,7 @@ import os
 os.environ['http_proxy'] = 'http://127.0.0.1:7896'
 os.environ['https_proxy'] = 'http://127.0.0.1:7896'
 os.environ['all_proxy'] = 'socks5://127.0.0.1:7897'
-
+os.sched_setaffinity(0, {30})
 from typing import Tuple
 import argparse
 import json
@@ -17,7 +17,7 @@ from PIL import Image
 # 你自己的数据和模型
 from data_preparing.blureegdatasets_selected_avg import EEGDataset
 from model.EEG_MedformerTS import eeg_encoder
-from model.uni import Projector, EEGConformer_Encoder, MetaEEG, EEGNetv4_Encoder, ShallowFBCSPNet_Encoder, NICE, ATCNet_Encoder, EEGITNet_Encoder, EEGProjectLayer
+from model.uni import Projector, EEGConformer_Encoder, MetaEEG, EEGNet_Encoder, ShallowFBCSPNet_Encoder, NICE, ATCNet_Encoder, EEGITNet_Encoder, EEGProjectLayer
 
 # ==========================
 #   PyTorch Lightning 相关
@@ -289,28 +289,43 @@ def run_all_modes(
     # 只用你原来正在用的 inter-subject 模式
     modes = {
         1: "in-subject",
-        2: "joint-subject",
+        # 2: "joint-subject",
         # 3: "inter-subject",
     }
 
     for mode_id, mode_name in modes.items():
         print(f"\n========== 运行模式: {mode_name} ==========\n")
 
-        for test_sub in subjects:
+        if mode_id == 2:  # joint-subject 只训练一次
+            test_subjects = ["sub-01"]
+        else:
+            test_subjects = subjects
+
+        for test_sub in test_subjects:
             if mode_id == 1:  # in-subject
                 train_subjects = [test_sub]
+                eval_subjects = [test_sub]
             elif mode_id == 2:  # joint-subject
                 train_subjects = subjects
+                eval_subjects = [test_sub]
             elif mode_id == 3:  # inter-subject
                 train_subjects = [s for s in subjects if s != test_sub]
+                eval_subjects = [test_sub]
 
             print(f"[{mode_name}] train={train_subjects}  test={test_sub}")
+
+            exp_name = f"{mode_name}"
+            log_dir = os.path.join(save_root, exp_name, str(test_sub))
+            results_path = os.path.join(log_dir, "test_results.json")
+            if os.path.exists(results_path):
+                print(f"[{mode_name}] {test_sub} 已完成，跳过：{results_path}")
+                continue
 
             train_dataset = EEGDataset(
                 data_path,
                 subjects=train_subjects,
                 train=True,
-                # avg=False,
+                avg=True,
             )
             test_dataset = EEGDataset(
                 data_path,
@@ -336,6 +351,8 @@ def run_all_modes(
             # base_model = NICE()
             base_model = EEGProjectLayer()
             # base_model = MetaEEG()
+            # base_model = EEGNet_Encoder()
+            # base_model = EEGConformer_Encoder()
 
             pl_model = EEGLightningModule(
                 model=base_model,
@@ -375,7 +392,7 @@ def run_all_modes(
 
             # ===== Trainer（使用你示例中的训练策略）=====
             trainer = Trainer(
-                devices=[3],  # 指定 GPU 卡号
+                devices=[6],  # 指定 GPU 卡号
                 log_every_n_steps=10,
                 # strategy=DDPStrategy(find_unused_parameters=True),
                 strategy="auto",
@@ -426,7 +443,7 @@ def main():
     parser.add_argument(
         "--save_root",
         type=str,
-        default="/home/wenxiao/workspace/qhy/BMCA/data/contrast/UBP",
+        default="/home/wenxiao/workspace/qhy/BMCA/data/contrast/pipline/UBP/r51",
         help="日志和 checkpoint 保存根目录",
     )
     parser.add_argument(
