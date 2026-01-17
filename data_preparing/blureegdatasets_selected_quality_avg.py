@@ -10,7 +10,16 @@ import open_clip
 # Get image directories from config
 
 class EEGDataset():
-    def __init__(self, data_path, subjects=None, train=True, avg=True ,time_window=[0, 1.0]):
+    def __init__(
+        self,
+        data_path,
+        subjects=None,
+        train=True,
+        avg=True,
+        time_window=[0, 1.0],
+        use_quality_avg=False,
+        quality_tau=1.0,
+    ):
         self.data_path = data_path
         self.train = train
         self.subject_list = os.listdir(data_path)
@@ -19,6 +28,8 @@ class EEGDataset():
         self.time_window = time_window
         self.n_cls = 1654 if train else 200  # Number of classes (1654 for train, 200 for test)
         self.avg = avg
+        self.use_quality_avg = use_quality_avg
+        self.quality_tau = quality_tau
 
         # Verify at least some subjects exist in the directory
         assert any(sub in self.subject_list for sub in self.subjects)
@@ -54,6 +65,29 @@ class EEGDataset():
         # self.img_features = saved_features['img_features']
         print("Text features shape:", self.text_features.shape)
         print("Image features shape:", self.img_features.shape)
+
+    def _self_consistency_weights_raw(self, trials):
+        if trials.dim() != 3:
+            raise ValueError(f"Expected trials shape [T, C, L], got {tuple(trials.shape)}")
+        t = trials.shape[0]
+        if t == 1:
+            return torch.ones(1, device=trials.device)
+        flat = trials.reshape(t, -1)
+        normalized = F.normalize(flat, dim=-1)
+        sim = normalized @ normalized.T
+        sim = sim - torch.eye(t, device=sim.device)
+        q = sim.sum(dim=1) / (t - 1)
+        if self.quality_tau is not None:
+            q = q / self.quality_tau
+        return torch.softmax(q, dim=0)
+
+    def _quality_weighted_average_raw(self, data_tensor):
+        weighted = []
+        with torch.no_grad():
+            for trials in data_tensor:
+                weights = self._self_consistency_weights_raw(trials).to(trials.device)
+                weighted.append((trials * weights[:, None, None]).sum(dim=0))
+        return torch.stack(weighted, dim=0)
 
             
     def load_data(self):
@@ -143,7 +177,7 @@ class EEGDataset():
                     start_index = i * samples_per_class
                     preprocessed_eeg_data_class = preprocessed_eeg_data[start_index:start_index+samples_per_class]
                     labels = torch.full((samples_per_class,), i, dtype=torch.long).detach()
-                    preprocessed_eeg_data_class = torch.mean(preprocessed_eeg_data_class.squeeze(0), 0)
+                    preprocessed_eeg_data_class = preprocessed_eeg_data_class.squeeze(0)
                     data_list.append(preprocessed_eeg_data_class)
                     label_list.append(labels)
 
@@ -153,16 +187,34 @@ class EEGDataset():
             data_tensor = torch.cat(data_list, dim=0).view(-1, *data_list[0].shape[2:])
             label_tensor = label_tensor.repeat_interleave(4)
         elif self.train and self.avg:
-            data_tensor = torch.cat(data_list, dim=0).view(-1, 4, *data_list[0].shape[2:]).mean(dim=1)              
-        else:           
-            data_tensor = torch.cat(data_list, dim=0).view(-1, *data_list[0].shape)   
+            data_tensor = torch.cat(data_list, dim=0)
+            trials_per_sample = data_list[0].shape[1]
+            data_tensor = data_tensor.view(-1, trials_per_sample, *data_list[0].shape[2:])
+        else:
+            data_tensor = torch.cat(data_list, dim=0)
+            trials_per_sample = data_list[0].shape[0]
+            data_tensor = data_tensor.view(-1, trials_per_sample, *data_list[0].shape[1:])
         
     
         self.times = times
         self.ch_names = ch_names
 
         selected_idx = [self.ch_names.index(ch) for ch in selected_ch]
-        data_tensor = data_tensor[:,selected_idx,:]
+        if data_tensor.dim() == 4:
+            data_tensor = data_tensor[:, :, selected_idx, :]
+        else:
+            data_tensor = data_tensor[:, selected_idx, :]
+
+        if self.avg and self.train:
+            if self.use_quality_avg:
+                data_tensor = self._quality_weighted_average_raw(data_tensor)
+            else:
+                data_tensor = data_tensor.mean(dim=1)
+        elif not self.train:
+            if self.use_quality_avg:
+                data_tensor = self._quality_weighted_average_raw(data_tensor)
+            else:
+                data_tensor = data_tensor.mean(dim=1)
         print(f"Data tensor shape: {data_tensor.shape}, label tensor shape: {label_tensor.shape}, text length: {len(texts)}, image length: {len(images)}")
 
         return data_tensor, label_tensor, texts, images

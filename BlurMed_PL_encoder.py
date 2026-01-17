@@ -284,8 +284,8 @@ def run_all_modes(
 ):
     os.makedirs(save_root, exist_ok=True)
 
-    subjects = [f"sub-{i:02d}" for i in range(1, 11)]
-    # subjects = [f"sub-{i:02d}" for i in range(2, 3)]
+    # subjects = [f"sub-{i:02d}" for i in range(1, 11)]
+    subjects = [f"sub-{i:02d}" for i in range(2, 3)]
     # 只用你原来正在用的 inter-subject 模式
     modes = {
         1: "in-subject",
@@ -443,7 +443,7 @@ def main():
     parser.add_argument(
         "--save_root",
         type=str,
-        default="/home/wenxiao/workspace/qhy/BMCA/data/contrast/pipline/UBP/r51",
+        default="/home/wenxiao/workspace/qhy/BMCA/data/contrast/pipline/UBP/lowers",
         help="日志和 checkpoint 保存根目录",
     )
     parser.add_argument(
