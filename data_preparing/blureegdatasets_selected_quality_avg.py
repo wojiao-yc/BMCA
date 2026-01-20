@@ -19,6 +19,8 @@ class EEGDataset():
         time_window=[0, 1.0],
         use_quality_avg=False,
         quality_tau=1.0,
+        test_avg_k=None,
+        test_avg_seed=None,
     ):
         self.data_path = data_path
         self.train = train
@@ -30,6 +32,12 @@ class EEGDataset():
         self.avg = avg
         self.use_quality_avg = use_quality_avg
         self.quality_tau = quality_tau
+        self.test_avg_k = test_avg_k
+        if test_avg_seed is not None:
+            self._test_avg_generator = torch.Generator()
+            self._test_avg_generator.manual_seed(test_avg_seed)
+        else:
+            self._test_avg_generator = None
 
         # Verify at least some subjects exist in the directory
         assert any(sub in self.subject_list for sub in self.subjects)
@@ -88,6 +96,22 @@ class EEGDataset():
                 weights = self._self_consistency_weights_raw(trials).to(trials.device)
                 weighted.append((trials * weights[:, None, None]).sum(dim=0))
         return torch.stack(weighted, dim=0)
+
+    def _select_random_trials(self, data_tensor, k):
+        if data_tensor.dim() != 4:
+            raise ValueError(f"Expected data shape [N, T, C, L], got {tuple(data_tensor.shape)}")
+        if k is None:
+            return data_tensor
+        if k <= 0:
+            raise ValueError(f"test_avg_k must be >= 1, got {k}")
+        t = data_tensor.shape[1]
+        if k >= t:
+            return data_tensor
+        selected = []
+        for trials in data_tensor:
+            perm = torch.randperm(t, generator=self._test_avg_generator)
+            selected.append(trials[perm[:k]])
+        return torch.stack(selected, dim=0)
 
             
     def load_data(self):
@@ -211,6 +235,8 @@ class EEGDataset():
             else:
                 data_tensor = data_tensor.mean(dim=1)
         elif not self.train:
+            if self.test_avg_k is not None:
+                data_tensor = self._select_random_trials(data_tensor, self.test_avg_k)
             if self.use_quality_avg:
                 data_tensor = self._quality_weighted_average_raw(data_tensor)
             else:

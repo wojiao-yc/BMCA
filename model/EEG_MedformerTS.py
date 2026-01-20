@@ -122,7 +122,7 @@ class eeg_encoder(nn.Module):
         self.loss_func = ClipLoss()     
         self.loss_func_blur = ClipLoss_blur()      
  
-    def forward(self, x, subject_ids=None):        
+    def forward(self, x):        
         x = self.encoder(x)        
         eeg_embedding = self.enc_eeg(x)
         out = self.proj_eeg(eeg_embedding)

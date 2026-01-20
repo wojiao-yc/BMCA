@@ -75,7 +75,7 @@ def evaluate_model(text_features_all, img_features_all, dataloader, optimizer=No
     return average_loss, accuracy, top5_acc
 
 def evaluate_subject(sub):
-    test_dataset = EEGDataset(data_path, subjects=[sub], train=False, use_quality_avg=True)
+    test_dataset = EEGDataset(data_path, subjects=[sub], train=False)
     test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)
 
     text_features = test_dataset.text_features

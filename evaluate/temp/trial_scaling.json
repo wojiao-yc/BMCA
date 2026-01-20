@@ -1,0 +1,47 @@
+{
+  "config": {
+    "subjects": [
+      "sub-01",
+      "sub-02",
+      "sub-03",
+      "sub-04",
+      "sub-05",
+      "sub-06",
+      "sub-07",
+      "sub-08",
+      "sub-09",
+      "sub-10"
+    ],
+    "data_path": "/mnt/dataset0/ldy/datasets/THINGS_EEG/Preprocessed_data_250Hz",
+    "model_path": "/home/wenxiao/workspace/qhy/BMCA/data/blur+avgs+med/joint-subject/checkpoints/epoch=136-val_top1_acc=0.4950.ckpt",
+    "device": "cuda:6",
+    "batch_size": 1,
+    "num_workers": 0,
+    "seed": 1234,
+    "time_window": [
+      0.0,
+      1.0
+    ]
+  },
+  "reliability": {
+    "space": "embedding",
+    "metric": "cosine",
+    "k_list": [
+      1,
+      2,
+      4,
+      8,
+      16,
+      40
+    ],
+    "bootstrap": 50,
+    "curve": [
+      {
+        "mean": 0.34525432527065275,
+        "ci_low": 0.33719447754323484,
+        "ci_high": 0.3502750476449728,
+        "k": 1
+      }
+    ]
+  }
+}

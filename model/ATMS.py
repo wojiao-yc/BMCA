@@ -19,22 +19,13 @@ from torch.utils.data import DataLoader, Dataset
 from torch.utils.tensorboard import SummaryWriter
 import torchvision.transforms as transforms
 import tqdm
-from einops.layers.torch import Rearrange, Reduce
-from sklearn.metrics import confusion_matrix
+from einops.layers.torch import Rearrange
 
 # Import custom modules
 from subject_layers.Transformer_EncDec import Encoder, EncoderLayer
 from subject_layers.SelfAttention_Family import FullAttention, AttentionLayer
 from subject_layers.Embed import DataEmbedding
-from loss import ClipLoss
-import utils.misc as misc
-
-# Set environment variables
-os.environ["WANDB_API_KEY"] = "KEY"
-os.environ["WANDB_MODE"] = 'offline'
-os.environ["WANDB_SILENT"] = "true"
-os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
-cudnn.benchmark = True
+from loss import ClipLoss, ClipLoss_blur
 
 
 class Config:
@@ -92,7 +83,7 @@ class iTransformer(nn.Module):
             norm_layer=nn.LayerNorm(configs.d_model)
         )
     
-    def forward(self, x_enc, x_mark_enc, subject_ids=None, modal='eeg'):
+    def forward(self, x_enc):
         """
         Forward pass for the iTransformer.
         
@@ -109,12 +100,7 @@ class iTransformer(nn.Module):
         enc_out, attns = self.encoder(x_enc, attn_mask=None)
         
         # Select relevant channels based on modality
-        if modal == 'eeg':
-            enc_out = enc_out[:, :54, :]      
-        elif modal == 'meg':
-            enc_out = enc_out[:, :262, :]        
-        elif modal == 'fmri':
-            enc_out = enc_out[:, :8, :]                      
+        enc_out = enc_out[:, :54, :]                         
             
         return enc_out
 
@@ -209,9 +195,11 @@ class ATMS(nn.Module):
         
         # CLIP-style loss parameters
         self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
-        self.loss_func = ClipLoss()
+        self.softplus = nn.Softplus()
+        self.loss_func = ClipLoss()     
+        self.loss_func_blur = ClipLoss_blur()  
     
-    def forward(self, x, subject_ids, modal):
+    def forward(self, x):
         """
         Forward pass for ATMS.
         
@@ -223,5 +211,5 @@ class ATMS(nn.Module):
         Returns:
             Encoded features
         """
-        x = self.encoder(x, None, subject_ids, modal)
+        x = self.encoder(x)
         return x
