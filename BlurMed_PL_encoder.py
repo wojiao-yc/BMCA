@@ -2,7 +2,7 @@ import os
 os.environ['http_proxy'] = 'http://127.0.0.1:7896'
 os.environ['https_proxy'] = 'http://127.0.0.1:7896'
 os.environ['all_proxy'] = 'socks5://127.0.0.1:7897'
-os.sched_setaffinity(0, {30})
+os.sched_setaffinity(0, {38})
 from typing import Tuple
 import argparse
 import json
@@ -284,12 +284,12 @@ def run_all_modes(
 ):
     os.makedirs(save_root, exist_ok=True)
 
-    # subjects = [f"sub-{i:02d}" for i in range(1, 11)]
-    subjects = [f"sub-{i:02d}" for i in range(2, 3)]
+    subjects = [f"sub-{i:02d}" for i in range(1, 11)]
+    # subjects = [f"sub-{i:02d}" for i in range(2, 3)]
     # 只用你原来正在用的 inter-subject 模式
     modes = {
         1: "in-subject",
-        # 2: "joint-subject",
+        2: "joint-subject",
         # 3: "inter-subject",
     }
 
@@ -348,8 +348,8 @@ def run_all_modes(
 
             # base_model = eeg_encoder()
             # base_model = Projector()
-            # base_model = NICE()
-            base_model = EEGProjectLayer()
+            base_model = NICE()
+            # base_model = EEGProjectLayer()
             # base_model = MetaEEG()
             # base_model = EEGNet_Encoder()
             # base_model = EEGConformer_Encoder()
@@ -443,7 +443,7 @@ def main():
     parser.add_argument(
         "--save_root",
         type=str,
-        default="/home/wenxiao/workspace/qhy/BMCA/data/contrast/pipline/UBP/lowers",
+        default="/home/wenxiao/workspace/qhy/BMCA/data/contrast/pipline/NICE",
         help="日志和 checkpoint 保存根目录",
     )
     parser.add_argument(

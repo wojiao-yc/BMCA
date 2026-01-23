@@ -7,7 +7,7 @@ DATA_ROOT="${DATA_ROOT:-/mnt/dataset4/qhy/THINGS-EEG/things_eeg/Preprocessed_dat
 TRAIN_PT="${TRAIN_PT:-${DATA_ROOT}/train.pt}"
 TEST_PT="${TEST_PT:-${DATA_ROOT}/test.pt}"
 OUTPUT_DIR="${OUTPUT_DIR:-/home/wenxiao/workspace/qhy/BMCA/data}"
-MODEL_TYPE="${MODEL_TYPE:-RN50}"
+MODEL_TYPE="${MODEL_TYPE:-ViT-g-14}"
 DEVICE="${DEVICE:-auto}"
 IMAGE_BATCH_SIZE="${IMAGE_BATCH_SIZE:-128}"
 TEXT_BATCH_SIZE="${TEXT_BATCH_SIZE:-256}"
@@ -17,7 +17,7 @@ BLUR_H="${BLUR_H:-224}"
 BLUR_W="${BLUR_W:-224}"
 PRETRAINED="${PRETRAINED:-}"
 
-KERNEL_SIZES=(1)
+KERNEL_SIZES=(51)
 
 EXTRA_ARGS=()
 if [[ -n "${IMAGE_ROOT:-}" ]]; then
@@ -58,7 +58,6 @@ for k in "${KERNEL_SIZES[@]}"; do
       data_path="${TEST_PT}"
     fi
     output="${OUTPUT_DIR}/${MODEL_TYPE}_${mode}_blur${k}.pt"
-    # output="${OUTPUT_DIR}/${MODEL_TYPE}_resize.pt"
     python "${SCRIPT}" \
       --config "${CONFIG}" \
       --mode "${mode}" \

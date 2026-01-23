@@ -32,6 +32,28 @@ def parse_subjects(value):
     return [v.strip() for v in value.split(",") if v.strip()]
 
 
+def extract_done_k(curve):
+    if not curve:
+        return set()
+    done = set()
+    for item in curve:
+        if isinstance(item, dict) and "k" in item:
+            try:
+                done.add(int(item["k"]))
+            except (TypeError, ValueError):
+                continue
+    return done
+
+
+def warn_resume_mismatch(existing, current, label):
+    if not isinstance(existing, dict):
+        return
+    diffs = [k for k, v in current.items() if existing.get(k) != v]
+    if diffs:
+        joined = ", ".join(diffs)
+        print(f"Warning: resume {label} differs for keys: {joined}")
+
+
 def resolve_device(device_str):
     if device_str.startswith("cuda") and not torch.cuda.is_available():
         print("CUDA not available, falling back to CPU.")
@@ -382,6 +404,7 @@ def main():
     parser.add_argument("--time-window-start", type=float, default=0.0)
     parser.add_argument("--time-window-end", type=float, default=1.0)
     parser.add_argument("--output", default="/home/wenxiao/workspace/qhy/BMCA/evaluate/trail_scaling.json", help="Optional path to save JSON results.")
+    parser.add_argument("--resume", action="store_true", help="Resume from existing output JSON and skip completed k values.")
     parser.add_argument("--plot", action="store_true", help="Plot curves from saved results.")
     parser.add_argument("--plot-dir", default=None, help="Directory for plots (defaults to output dir).")
     parser.add_argument("--plot-dpi", type=int, default=150)
@@ -401,73 +424,103 @@ def main():
     if args.run in ("both", "retrieval") or (args.run in ("both", "reliability") and args.space == "embedding"):
         model = load_encoder(args.model_path, device)
 
-    results = {
-        "config": {
-            "subjects": subjects,
-            "data_path": args.data_path,
-            "model_path": args.model_path,
-            "device": str(device),
-            "batch_size": args.batch_size,
-            "num_workers": args.num_workers,
-            "seed": args.seed,
-            "time_window": [args.time_window_start, args.time_window_end],
-        }
+    current_config = {
+        "subjects": subjects,
+        "data_path": args.data_path,
+        "model_path": args.model_path,
+        "device": str(device),
+        "batch_size": args.batch_size,
+        "num_workers": args.num_workers,
+        "seed": args.seed,
+        "time_window": [args.time_window_start, args.time_window_end],
     }
+    results = None
+    if args.resume and args.output and os.path.exists(args.output):
+        try:
+            results = load_results(args.output)
+        except Exception as exc:
+            print(f"Warning: failed to load {args.output} ({exc}); starting fresh.")
+            results = None
+    if not isinstance(results, dict):
+        results = {"config": current_config}
+    else:
+        warn_resume_mismatch(results.get("config", {}), current_config, "config")
+        results["config"] = current_config
     save_cb = lambda: save_results(args.output, results)
     save_cb()
 
     metric = "corr" if args.metric == "correlation" else args.metric
     if args.run in ("both", "reliability"):
         print(f"Running reliability curve (space={args.space}, metric={metric})")
+        existing_curve = []
+        if args.resume:
+            existing_curve = results.get("reliability", {}).get("curve", [])
         results["reliability"] = {
             "space": args.space,
             "metric": metric,
             "k_list": reliability_k_list,
             "bootstrap": args.bootstrap,
-            "curve": [],
+            "curve": existing_curve,
         }
         save_cb()
-        run_reliability(
-            subjects=subjects,
-            data_path=args.data_path,
-            k_list=reliability_k_list,
-            n_boot=args.bootstrap,
-            base_seed=args.seed,
-            space=args.space,
-            metric=metric,
-            model=model,
-            device=device,
-            batch_size=args.batch_size,
-            num_workers=args.num_workers,
-            dataset_kwargs=dataset_kwargs,
-            curve=results["reliability"]["curve"],
-            save_cb=save_cb,
-        )
+        pending_k = reliability_k_list
+        if args.resume:
+            done_k = extract_done_k(existing_curve)
+            pending_k = [k for k in reliability_k_list if k not in done_k]
+        if not pending_k:
+            print("[reliability] all requested k values already computed; skipping.")
+        else:
+            run_reliability(
+                subjects=subjects,
+                data_path=args.data_path,
+                k_list=pending_k,
+                n_boot=args.bootstrap,
+                base_seed=args.seed,
+                space=args.space,
+                metric=metric,
+                model=model,
+                device=device,
+                batch_size=args.batch_size,
+                num_workers=args.num_workers,
+                dataset_kwargs=dataset_kwargs,
+                curve=results["reliability"]["curve"],
+                save_cb=save_cb,
+            )
 
     if args.run in ("both", "retrieval"):
         print(f"Running retrieval scaling (k_way={args.k_way})")
+        existing_curve = []
+        if args.resume:
+            existing_curve = results.get("retrieval", {}).get("curve", [])
         results["retrieval"] = {
             "k_list": retrieval_k_list,
             "bootstrap": args.bootstrap,
             "k_way": args.k_way,
-            "curve": [],
+            "curve": existing_curve,
         }
         save_cb()
-        run_retrieval(
-            subjects=subjects,
-            data_path=args.data_path,
-            k_list=retrieval_k_list,
-            n_boot=args.bootstrap,
-            base_seed=args.seed + 10000,
-            model=model,
-            device=device,
-            k_way=args.k_way,
-            batch_size=args.batch_size,
-            num_workers=args.num_workers,
-            dataset_kwargs=dataset_kwargs,
-            curve=results["retrieval"]["curve"],
-            save_cb=save_cb,
-        )
+        pending_k = retrieval_k_list
+        if args.resume:
+            done_k = extract_done_k(existing_curve)
+            pending_k = [k for k in retrieval_k_list if k not in done_k]
+        if not pending_k:
+            print("[retrieval] all requested k values already computed; skipping.")
+        else:
+            run_retrieval(
+                subjects=subjects,
+                data_path=args.data_path,
+                k_list=pending_k,
+                n_boot=args.bootstrap,
+                base_seed=args.seed + 10000,
+                model=model,
+                device=device,
+                k_way=args.k_way,
+                batch_size=args.batch_size,
+                num_workers=args.num_workers,
+                dataset_kwargs=dataset_kwargs,
+                curve=results["retrieval"]["curve"],
+                save_cb=save_cb,
+            )
     save_cb()
     if args.output:
         print(f"Saved results to {args.output}")
