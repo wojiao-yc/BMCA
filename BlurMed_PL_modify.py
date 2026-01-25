@@ -2,7 +2,7 @@ import os
 os.environ['http_proxy'] = 'http://127.0.0.1:7896'
 os.environ['https_proxy'] = 'http://127.0.0.1:7896'
 os.environ['all_proxy'] = 'socks5://127.0.0.1:7897'
-os.sched_setaffinity(0, {46})
+os.sched_setaffinity(0, {59})
 from typing import Tuple
 import argparse
 import json
@@ -386,7 +386,7 @@ def run_all_modes(
 
             # ===== Trainer（使用你示例中的训练策略）=====
             trainer = Trainer(
-                devices=[3],  # 指定 GPU 卡号
+                devices=[1],  # 指定 GPU 卡号
                 log_every_n_steps=10,
                 # strategy=DDPStrategy(find_unused_parameters=True),
                 strategy="auto",
@@ -440,7 +440,7 @@ def main():
     parser.add_argument(
         "--save_root",
         type=str,
-        default="/home/wenxiao/workspace/qhy/BMCA/data/vit-g-14/low",
+        default="/home/wenxiao/workspace/qhy/BMCA/data/vit-g-14/avg+med",
         help="日志和 checkpoint 保存根目录",
     )
     parser.add_argument(

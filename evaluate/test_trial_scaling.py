@@ -16,7 +16,7 @@ from model.EEG_MedformerTS import eeg_encoder
 
 
 DEFAULT_RELIABILITY_K = [1, 2, 4, 8, 16, 40]
-DEFAULT_RETRIEVAL_K = [1, 2, 4, 8, 16, 32, 80]
+DEFAULT_RETRIEVAL_K = [1, 2, 4, 8, 16, 32, 64, 80]
 
 
 def parse_k_list(value, default):

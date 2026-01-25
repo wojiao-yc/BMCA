@@ -28,13 +28,13 @@ class EEGDataset():
         self.data = self.extract_eeg(self.data, time_window)
         
         # Load precomputed CLIP features
-        features_filename = "/home/wenxiao/workspace/qhy/BMCA/data/ViT-g-14_train_lowres0.25.pt" \
-            if self.train else "/home/wenxiao/workspace/qhy/BMCA/data/ViT-g-14_test_lowres0.25.pt"
-        print("Loading features from:", features_filename)
+        features_filename = "/home/wenxiao/workspace/qhy/BMCA/data/RN50_train_blur31.pt" \
+            if self.train else "/home/wenxiao/workspace/qhy/BMCA/data/RN50_test_blur31.pt"
         # features_filename = "/home/wenxiao/workspace/qhy/BMCA/data/RN50_openai_train.pt" \
-            # if self.train else "/home/wenxiao/workspace/qhy/BMCA/data/RN50_openai_test.pt"
+        #     if self.train else "/home/wenxiao/workspace/qhy/BMCA/data/RN50_openai_test.pt"
+        print("Loading features from:", features_filename)
         saved_features = torch.load(features_filename, weights_only=False)
-        # Text features
+        # # Text features
         text_dict = saved_features['text_features']
         text_keys = list(text_dict.keys())
         text_tensor = torch.stack([text_dict[k] for k in text_keys], dim=0)  # shape: [1654, 1024]

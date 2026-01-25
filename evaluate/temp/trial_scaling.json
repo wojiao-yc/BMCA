@@ -14,7 +14,7 @@
     ],
     "data_path": "/mnt/dataset0/ldy/datasets/THINGS_EEG/Preprocessed_data_250Hz",
     "model_path": "/home/wenxiao/workspace/qhy/BMCA/data/blur+avgs+med/joint-subject/checkpoints/epoch=136-val_top1_acc=0.4950.ckpt",
-    "device": "cuda:6",
+    "device": "cuda:3",
     "batch_size": 1,
     "num_workers": 0,
     "seed": 1234,
@@ -65,6 +65,64 @@
         "ci_low": 0.882431832998991,
         "ci_high": 0.8852019073069095,
         "k": 16
+      },
+      {
+        "mean": 0.9675643138885498,
+        "ci_low": 0.9671644622087479,
+        "ci_high": 0.9679954464733601,
+        "k": 40
+      }
+    ]
+  },
+  "retrieval": {
+    "k_list": [
+      1,
+      2,
+      4,
+      8,
+      16,
+      32,
+      64,
+      80
+    ],
+    "bootstrap": 50,
+    "k_way": 200,
+    "curve": [
+      {
+        "k": 1,
+        "mean_acc": 0.07415999999999999,
+        "std_acc": 0.005953519967212673,
+        "var_acc": 3.544439999999998e-05
+      },
+      {
+        "k": 2,
+        "mean_acc": 0.14208,
+        "std_acc": 0.006806878873610139,
+        "var_acc": 4.6333600000000034e-05
+      },
+      {
+        "k": 4,
+        "mean_acc": 0.23138000000000003,
+        "std_acc": 0.00811945810999725,
+        "var_acc": 6.592560000000013e-05
+      },
+      {
+        "k": 8,
+        "mean_acc": 0.32272,
+        "std_acc": 0.008348149495546901,
+        "var_acc": 6.969159999999997e-05
+      },
+      {
+        "k": 16,
+        "mean_acc": 0.39004999999999995,
+        "std_acc": 0.006785462401340086,
+        "var_acc": 4.604249999999997e-05
+      },
+      {
+        "k": 32,
+        "mean_acc": 0.4314099999999999,
+        "std_acc": 0.006649578934037854,
+        "var_acc": 4.42169e-05
       }
     ]
   }

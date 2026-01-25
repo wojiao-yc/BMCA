@@ -5,17 +5,17 @@ import torch
 import random
 from torch.utils.data import DataLoader
 # from data_preparing.blureegdatasets import EEGDataset
-# from data_preparing.blureegdatasets_selected_avg import EEGDataset
-from data_preparing.blureegdatasets_selected_quality_avg import EEGDataset
+from data_preparing.blureegdatasets_selected_avg import EEGDataset
+# from data_preparing.blureegdatasets_selected_quality_avg import EEGDataset
 from model.EEG_MedformerTS import eeg_encoder
 from model.uni import Projector, EEGConformer_Encoder, MetaEEG, EEGNet_Encoder, ShallowFBCSPNet_Encoder, NICE, ATCNet_Encoder, EEGITNet_Encoder, EEGProjectLayer
 from BlurMed_PL import EEGLightningModule
 import numpy as np
 
-model_path = "/home/wenxiao/workspace/qhy/BMCA/data/blur+avgs+med/joint-subject/checkpoints/epoch=136-val_top1_acc=0.4950.ckpt"
+model_path = "/home/wenxiao/workspace/qhy/BMCA/data/blur/r31/joint-subject/sub-01/checkpoints/epoch=94-val_top1_acc=0.4700.ckpt"
 data_path = '/mnt/dataset0/ldy/datasets/THINGS_EEG/Preprocessed_data_250Hz'
 subjects = [f'sub-{i:02d}' for i in range(1, 11)]
-device = torch.device("cuda:6" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:2" if torch.cuda.is_available() else "cpu")
 
 def evaluate_model(text_features_all, img_features_all, dataloader, optimizer=None, device=None, model=None, k=None):
     if device is None:
@@ -104,11 +104,11 @@ def evaluate_subject(sub):
 ckpt = torch.load(model_path, map_location=device)
 state = {k.replace("brain.", ""): v for k, v in ckpt["state_dict"].items()}
 model = eeg_encoder().to(device)
-# # model = NICE().to(device)
-# model.load_state_dict(state, strict=True)
+# model = NICE().to(device)
+model.load_state_dict(state, strict=True)
 # model = eeg_encoder().to(device)
 # model.load_state_dict(torch.load(model_path, map_location=device))
-# model.eval()
+model.eval()
 
 results = []
 
