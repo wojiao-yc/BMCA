@@ -12,7 +12,7 @@ from model.uni import Projector, EEGConformer_Encoder, MetaEEG, EEGNet_Encoder, 
 from BlurMed_PL import EEGLightningModule
 import numpy as np
 
-model_path = "/home/wenxiao/workspace/qhy/BMCA/data/blur/r31/joint-subject/sub-01/checkpoints/epoch=94-val_top1_acc=0.4700.ckpt"
+model_path = "/home/wenxiao/workspace/qhy/BMCA/data/scale/0.2/joint-subject/sub-01/checkpoints/epoch=66-val_top1_acc=0.2500.ckpt"
 data_path = '/mnt/dataset0/ldy/datasets/THINGS_EEG/Preprocessed_data_250Hz'
 subjects = [f'sub-{i:02d}' for i in range(1, 11)]
 device = torch.device("cuda:2" if torch.cuda.is_available() else "cpu")

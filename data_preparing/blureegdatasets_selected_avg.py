@@ -28,8 +28,8 @@ class EEGDataset():
         self.data = self.extract_eeg(self.data, time_window)
         
         # Load precomputed CLIP features
-        features_filename = "/home/wenxiao/workspace/qhy/BMCA/data/RN50_train_blur31.pt" \
-            if self.train else "/home/wenxiao/workspace/qhy/BMCA/data/RN50_test_blur31.pt"
+        features_filename = "/home/wenxiao/workspace/qhy/BMCA/data/intra-subject_ubp_EEGProjectLayer_RN50_train.pt" \
+            if self.train else "/home/wenxiao/workspace/qhy/BMCA/data/intra-subject_ubp_EEGProjectLayer_RN50_test.pt"
         # features_filename = "/home/wenxiao/workspace/qhy/BMCA/data/RN50_openai_train.pt" \
         #     if self.train else "/home/wenxiao/workspace/qhy/BMCA/data/RN50_openai_test.pt"
         print("Loading features from:", features_filename)
@@ -39,18 +39,18 @@ class EEGDataset():
         text_keys = list(text_dict.keys())
         text_tensor = torch.stack([text_dict[k] for k in text_keys], dim=0)  # shape: [1654, 1024]
         # Img features
-        # img_low   = saved_features['img_features']['low']
-        # img_med   = saved_features['img_features']['medium']
-        # img_high  = saved_features['img_features']['high']
-        # img_keys = list(img_low.keys())
-        # img_tensor = torch.stack([
-        #     (img_low[k] + img_med[k] + img_high[k]) / 3.0
-        #     # img_med[k]
-        #     for k in img_keys
-        # ], dim=0)  # shape: [16540, 1024]
-        img_tensor = saved_features['img_features']
-        img_keys = list(img_tensor.keys())
-        img_tensor = torch.stack([img_tensor[k] for k in img_keys], dim=0)  # shape: [16540, 1024]
+        img_low   = saved_features['img_features']['low']
+        img_med   = saved_features['img_features']['medium']
+        img_high  = saved_features['img_features']['high']
+        img_keys = list(img_low.keys())
+        img_tensor = torch.stack([
+            (img_low[k] + img_med[k] + img_high[k]) / 3.0
+            # img_med[k]
+            for k in img_keys
+        ], dim=0)  # shape: [16540, 1024]
+        # img_tensor = saved_features['img_features']
+        # img_keys = list(img_tensor.keys())
+        # img_tensor = torch.stack([img_tensor[k] for k in img_keys], dim=0)  # shape: [16540, 1024]
         self.text_features = text_tensor
         self.img_features  = img_tensor
         # self.text_features = saved_features['text_features']

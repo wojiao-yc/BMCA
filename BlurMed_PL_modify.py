@@ -290,7 +290,7 @@ def run_all_modes(
     # 只用你原来正在用的 inter-subject 模式
     modes = {
         1: "in-subject",
-        2: "joint-subject",
+        # 2: "joint-subject",
         # 3: "inter-subject",
     }
 
@@ -386,7 +386,7 @@ def run_all_modes(
 
             # ===== Trainer（使用你示例中的训练策略）=====
             trainer = Trainer(
-                devices=[1],  # 指定 GPU 卡号
+                devices=[3],  # 指定 GPU 卡号
                 log_every_n_steps=10,
                 # strategy=DDPStrategy(find_unused_parameters=True),
                 strategy="auto",
@@ -440,7 +440,7 @@ def main():
     parser.add_argument(
         "--save_root",
         type=str,
-        default="/home/wenxiao/workspace/qhy/BMCA/data/vit-g-14/avg+med",
+        default="/home/wenxiao/workspace/qhy/BMCA/data/jpeg",
         help="日志和 checkpoint 保存根目录",
     )
     parser.add_argument(
